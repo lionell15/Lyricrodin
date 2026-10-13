@@ -3,33 +3,66 @@ package org.rodin.ytmlyrics
 import android.app.Activity
 import android.content.Intent
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.provider.Settings
 import android.view.Gravity
 import android.widget.Button
 import android.widget.LinearLayout
+import android.widget.ScrollView
 import android.widget.TextView
 
-class MainActivity : Activity() {
- override fun onCreate(savedInstanceState: Bundle?) {
+class MainActivity:Activity() {
+ private val handler=Handler(Looper.getMainLooper())
+ private lateinit var status:TextView
+ private val refresh=object:Runnable {
+  override fun run() {
+   status.text=DiagnosticStore.render(this@MainActivity)
+   handler.postDelayed(this,2000L)
+  }
+ }
+ override fun onCreate(savedInstanceState:Bundle?) {
   super.onCreate(savedInstanceState)
-  val root = LinearLayout(this).apply {
-   orientation = LinearLayout.VERTICAL
-   gravity = Gravity.CENTER_HORIZONTAL
-   setPadding(40, 70, 40, 40)
+  val root=LinearLayout(this).apply {
+   orientation=LinearLayout.VERTICAL
+   setPadding(35,50,35,35)
   }
   root.addView(TextView(this).apply {
-   text = "YT Music → HyperIsland: Lyricrodin v0.1"
-   textSize = 23f
+   text="Lyricrodin v0.2 · Diagnóstico"
+   textSize=23f
   })
   root.addView(TextView(this).apply {
-   text = "Activa Lyricon en HyperLyrics Enhanced y concede acceso a notificaciones. Reproduce YouTube Music para buscar letras sincronizadas en LRCLIB."
-   textSize = 16f
-   setPadding(0, 30, 0, 30)
+   text="Reproduce YouTube Music durante al menos 15 segundos y consulta los estados abajo. La fuente de letras de HyperLyrics Enhanced debe ser Lyricon. Sin conexión Lyricon no aparecerá nada en HyperIsland."
+   textSize=15f
+   setPadding(0,25,0,25)
   })
   root.addView(Button(this).apply {
-   text = "Conceder acceso a notificaciones"
+   text="Permiso de acceso a notificaciones"
    setOnClickListener { startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)) }
   })
-  setContentView(root)
+  root.addView(Button(this).apply {
+   text="Copiar diagnóstico"
+   setOnClickListener {
+    val text=DiagnosticStore.render(this@MainActivity)
+    val clipboard=getSystemService(CLIPBOARD_SERVICE) as android.content.ClipboardManager
+    clipboard.setPrimaryClip(android.content.ClipData.newPlainText("Lyricrodin diagnóstico",text))
+    android.widget.Toast.makeText(this@MainActivity,"Copiado",android.widget.Toast.LENGTH_SHORT).show()
+   }
+  })
+  status=TextView(this).apply {
+   textSize=16f
+   setPadding(0,25,0,40)
+  }
+  root.addView(status)
+  setContentView(ScrollView(this).apply {addView(root)})
+ }
+ override fun onResume() {
+  super.onResume()
+  handler.removeCallbacks(refresh)
+  handler.post(refresh)
+ }
+ override fun onPause() {
+  handler.removeCallbacks(refresh)
+  super.onPause()
  }
 }

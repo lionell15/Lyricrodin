@@ -28,6 +28,7 @@ class YtMusicListener:NotificationListenerService() {
  private var lastPlaying:Boolean?=null
  private var serial=0L
  private var running=false
+ private var lastCentralConnected:Boolean?=null
 
  private val callback=object:MediaController.Callback() {
   override fun onMetadataChanged(metadata:MediaMetadata?)=update()
@@ -38,6 +39,11 @@ class YtMusicListener:NotificationListenerService() {
  private val tick=object:Runnable {
   override fun run() {
    if(!running)return
+   val active=provider?.player?.isActive==true
+   if(lastCentralConnected!=active) {
+    lastCentralConnected=active
+    DiagnosticStore.put(this@YtMusicListener,"central",if(active)"Conectado con Lyricon" else "Sin conexión con Lyricon")
+   }
    val p=current?.playbackState
    val playing=p?.state==PlaybackState.STATE_PLAYING
    if(lastPlaying!=playing) {
@@ -53,16 +59,24 @@ class YtMusicListener:NotificationListenerService() {
   main.post {
    if(running)return@post
    running=true
+   DiagnosticStore.put(this@YtMusicListener,"service","Servicio de notificaciones activo")
    manager=getSystemService(MEDIA_SESSION_SERVICE) as MediaSessionManager
    provider=LyriconFactory.createProvider(
     context=applicationContext,
     providerPackageName=packageName,
     playerPackageName=YTM
-   ).also {it.autoSync=true;it.register()}
+   ).also {
+    it.autoSync=true
+    val ok=it.register()
+    DiagnosticStore.put(this@YtMusicListener,"register","Solicitud de registro Lyricon: "+ok)
+   }
    runCatching {
     manager?.addOnActiveSessionsChangedListener(
      sessions,ComponentName(this,YtMusicListener::class.java),main)
-   }.onFailure {Log.e(TAG,"Unable to observe MediaSession",it)}
+   }.onFailure {
+    Log.e(TAG,"Unable to observe MediaSession",it)
+    DiagnosticStore.put(this@YtMusicListener,"error","MediaSession: "+it.javaClass.simpleName+": "+it.message)
+   }
    refresh()
    main.removeCallbacks(tick)
    main.post(tick)
@@ -79,6 +93,8 @@ class YtMusicListener:NotificationListenerService() {
   val all=runCatching {
    manager?.getActiveSessions(ComponentName(this,YtMusicListener::class.java)).orEmpty()
   }.getOrElse {emptyList()}
+  val ytmSessions=all.count {it.packageName==YTM}
+  DiagnosticStore.put(this,"session",if(ytmSessions>0)"Sesión YouTube Music detectada" else "No hay sesión de YouTube Music; inicia una canción")
   val next=all.filter {it.packageName==YTM}.maxByOrNull {
    when(it.playbackState?.state) {
     PlaybackState.STATE_PLAYING->3
@@ -103,6 +119,7 @@ class YtMusicListener:NotificationListenerService() {
   val album=data?.getString(MediaMetadata.METADATA_KEY_ALBUM)?.trim().orEmpty()
   val duration=data?.getLong(MediaMetadata.METADATA_KEY_DURATION)?.coerceAtLeast(0)?:0
   if(title.isBlank() || artist.isBlank()) {
+   if(track!=null) DiagnosticStore.put(this,"track","Sin metadatos de canción")
    if(track!=null) {
     serial++
     track=null
@@ -116,16 +133,20 @@ class YtMusicListener:NotificationListenerService() {
    serial++
    val seq=serial
    track=next
+   DiagnosticStore.put(this,"track",title+" — "+artist)
+   DiagnosticStore.put(this,"lyrics","Buscando letras sincronizadas en LRCLIB…")
    lastPlaying=null
    publish(next,emptyList())
    worker.execute {
     val lyrics=runCatching {client.lyrics(next)}.getOrElse {
-     Log.e(TAG,"Lyrics not found",it)
+     Log.e(TAG,"Lyrics request error",it)
+     DiagnosticStore.put(this@YtMusicListener,"error","LRCLIB: "+it.javaClass.simpleName+": "+it.message)
      emptyList()
     }
     main.post {
      if(running && seq==serial && track?.id==next.id) {
       publish(next,lyrics)
+      DiagnosticStore.put(this@YtMusicListener,"lyrics",if(lyrics.isEmpty())"No hay letras sincronizadas para esta canción" else "Letras recibidas: "+lyrics.size+" líneas")
       Log.i(TAG,"Lyrics lines: "+lyrics.size)
      }
     }
@@ -139,8 +160,9 @@ class YtMusicListener:NotificationListenerService() {
   provider?.player?.setPosition(position(current?.playbackState))
  }
  private fun publish(t:Track,lines:List<RichLyricLine>) {
-  provider?.player?.setSong(Song(
+  val sent=provider?.player?.setSong(Song(
    id=t.id,name=t.title,artist=t.artist,duration=t.durationMs,lyrics=lines))
+  DiagnosticStore.put(this,"delivery","setSong(): "+sent+" (líneas: "+lines.size+")")
   provider?.player?.setPosition(position(current?.playbackState))
   provider?.player?.setPlaybackState(
    current?.playbackState?.state==PlaybackState.STATE_PLAYING)
@@ -158,6 +180,7 @@ class YtMusicListener:NotificationListenerService() {
  }
  private fun stop() {
   running=false
+  DiagnosticStore.put(this,"service","Servicio detenido / sin acceso")
   serial++
   main.removeCallbacks(tick)
   runCatching {current?.unregisterCallback(callback)}
