@@ -137,20 +137,8 @@ class YtMusicListener:NotificationListenerService() {
    DiagnosticStore.put(this,"lyrics","Buscando letras sincronizadas en LRCLIB…")
    lastPlaying=null
    publish(next,emptyList())
-   worker.execute {
-    val lyrics=runCatching {client.lyrics(next)}.getOrElse {
-     Log.e(TAG,"Lyrics request error",it)
-     DiagnosticStore.put(this@YtMusicListener,"error","LRCLIB: "+it.javaClass.simpleName+": "+it.message)
-     emptyList()
-    }
-    main.post {
-     if(running && seq==serial && track?.id==next.id) {
-      publish(next,lyrics)
-      DiagnosticStore.put(this@YtMusicListener,"lyrics",if(lyrics.isEmpty())"No hay letras sincronizadas para esta canción" else "Letras recibidas: "+lyrics.size+" líneas")
-      Log.i(TAG,"Lyrics lines: "+lyrics.size)
-     }
-    }
-   }
+   DiagnosticStore.put(this,"error","Ninguno")
+   requestLyrics(next,seq,0)
   }
   val playing=current?.playbackState?.state==PlaybackState.STATE_PLAYING
   if(lastPlaying!=playing) {
@@ -158,6 +146,41 @@ class YtMusicListener:NotificationListenerService() {
    lastPlaying=playing
   }
   provider?.player?.setPosition(position(current?.playbackState))
+ }
+
+ private fun requestLyrics(song: Track, generation: Long, attempt: Int) {
+  worker.execute {
+   val response=runCatching { client.lyrics(song) }
+   main.post {
+    if(!running || generation!=serial || track?.id!=song.id)return@post
+    response.onSuccess { result ->
+     DiagnosticStore.put(this,"error","Ninguno")
+     publish(song,result.lines)
+     DiagnosticStore.put(
+      this,"lyrics",
+      if(result.lines.isEmpty()) result.strategy
+      else "Encontradas "+result.lines.size+" líneas · "+result.strategy
+     )
+     Log.i(TAG,"Lyrics found: "+result.lines.size+" · "+result.strategy)
+    }.onFailure { error ->
+     val message=error.javaClass.simpleName+": "+error.message
+     DiagnosticStore.put(this,"error","LRCLIB: "+message)
+     Log.w(TAG,"LRCLIB request failed (attempt "+(attempt+1)+")",error)
+     if(attempt<2) {
+      val delayMs=if(attempt==0)5000L else 10000L
+      DiagnosticStore.put(this,"lyrics","Error temporal de LRCLIB. Reintento "+(attempt+1)+"/2 en "+(delayMs/1000)+" s")
+      main.postDelayed({
+       if(running && generation==serial && track?.id==song.id) {
+        DiagnosticStore.put(this,"lyrics","Reintentando consulta LRCLIB…")
+        requestLyrics(song,generation,attempt+1)
+       }
+      },delayMs)
+     } else {
+      DiagnosticStore.put(this,"lyrics","No se pudieron consultar las letras: error de conexión. Cambia de canción o vuelve a reproducirla para reintentar.")
+     }
+    }
+   }
+  }
  }
  private fun publish(t:Track,lines:List<RichLyricLine>) {
   val sent=provider?.player?.setSong(Song(

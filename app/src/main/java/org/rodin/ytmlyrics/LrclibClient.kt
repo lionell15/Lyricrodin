@@ -147,14 +147,14 @@ internal class LrclibClient {
         if (track.durationMs <= 0) 0L
         else abs(obj.optLong("duration", -1L) * 1000L - track.durationMs)
 
-    private fun acceptable(obj: JSONObject, track: Track, cleanTitle: String, primaryArtist: String): Boolean {
+    private fun acceptable(obj: JSONObject, track: Track, cleanTitle: String, mainArtist: String): Boolean {
         val foundTitle = normalize(cleanedTitle(obj.optString("trackName")))
         val expectedTitle = normalize(cleanTitle)
         if (foundTitle.isBlank() || foundTitle != expectedTitle) return false
 
         val foundArtist = normalize(obj.optString("artistName"))
         val expectedFull = normalize(track.artist)
-        val expectedMain = normalize(primaryArtist)
+        val expectedMain = normalize(mainArtist)
         val foundMain = normalize(primaryArtist(obj.optString("artistName")))
         if (foundArtist.isBlank() || expectedMain.isBlank()) return false
 
