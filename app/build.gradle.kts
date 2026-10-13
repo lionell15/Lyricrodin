@@ -4,7 +4,7 @@ plugins {
 }
 android {
  namespace = "org.rodin.ytmlyrics"
- compileSdk = 35
+ compileSdk = 36
  defaultConfig {
   applicationId = "org.rodin.ytmlyrics"
   minSdk = 28
