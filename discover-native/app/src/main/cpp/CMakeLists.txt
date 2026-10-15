@@ -1,0 +1,8 @@
+cmake_minimum_required(VERSION 3.22.1)
+project(rodin_discover_native C)
+set(CMAKE_C_STANDARD 11)
+add_library(rodindiscover SHARED rodin_discover_native.c)
+find_library(log-lib log)
+find_library(dl-lib dl)
+target_compile_options(rodindiscover PRIVATE -Wall -Wextra -Werror -fno-omit-frame-pointer)
+target_link_libraries(rodindiscover PRIVATE ${log-lib} ${dl-lib})
