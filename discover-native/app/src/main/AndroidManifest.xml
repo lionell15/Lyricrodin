@@ -2,7 +2,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
   <application android:label="Rodin Discover Native (experimental)"
    android:description="@string/module_description"
-   android:extractNativeLibs="true">
+   android:extractNativeLibs="false">
     <activity android:name="io.rodin.discovernative.MainActivity" android:exported="true">
       <intent-filter>
         <action android:name="android.intent.action.MAIN"/>
