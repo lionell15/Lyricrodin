@@ -1,4 +1,4 @@
-name: Rodin Discover Native v0.7.2
+name: Rodin Discover Native v0.7.3
 on:
   push:
     branches:
@@ -39,8 +39,16 @@ jobs:
           grep -q 'META-INF/xposed/scope.list' contents.txt
           grep -q 'META-INF/xposed/native_init.list' contents.txt
           grep -q 'META-INF/xposed/java_init.list' contents.txt
+          python3 - <<'PY'
+          import zipfile
+          apk = 'app/build/outputs/apk/debug/app-debug.apk'
+          with zipfile.ZipFile(apk) as z:
+              entry = z.getinfo('lib/arm64-v8a/librodindiscover.so')
+              assert entry.compress_type == zipfile.ZIP_STORED, 'Native .so must be STORED, not DEFLATED'
+              print('Native library stored uncompressed: OK')
+          PY
       - uses: actions/upload-artifact@v4
         with:
-          name: RodinDiscoverNative-v0.7.2-debug-EXPERIMENTAL
+          name: RodinDiscoverNative-v0.7.3-debug-EXPERIMENTAL
           path: discover-native/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
