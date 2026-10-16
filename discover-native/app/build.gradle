@@ -7,8 +7,8 @@ android {
   applicationId 'io.rodin.discovernative'
   minSdk 35
   targetSdk 35
-  versionCode 9
-  versionName '0.7.2-native-probe'
+  versionCode 10
+  versionName '0.7.3-native-probe'
   ndk { abiFilters 'arm64-v8a' }
  }
  buildTypes {
@@ -21,7 +21,10 @@ android {
    version '3.22.1'
   }
  }
- packaging { resources { merges += ['META-INF/xposed/*'] } }
+ packaging {
+  jniLibs { useLegacyPackaging = false }
+  resources { merges += ['META-INF/xposed/*'] }
+ }
 }
 
 dependencies {
