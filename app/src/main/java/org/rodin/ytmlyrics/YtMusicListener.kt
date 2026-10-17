@@ -21,6 +21,8 @@ class YtMusicListener:NotificationListenerService() {
  private val main=Handler(Looper.getMainLooper())
  private val worker=Executors.newSingleThreadExecutor()
  private val client=LrclibClient()
+ private val notifier=LyricsNotification()
+ private var syncedLines:List<RichLyricLine> = emptyList()
  private var manager:MediaSessionManager?=null
  private var current:MediaController?=null
  private var provider:LyriconProvider?=null
@@ -51,6 +53,7 @@ class YtMusicListener:NotificationListenerService() {
     lastPlaying=playing
    }
    provider?.player?.setPosition(position(p))
+   notifyLyrics()
    main.postDelayed(this,1000)
   }
  }
@@ -61,15 +64,20 @@ class YtMusicListener:NotificationListenerService() {
    running=true
    DiagnosticStore.put(this@YtMusicListener,"service","Servicio de notificaciones activo")
    manager=getSystemService(MEDIA_SESSION_SERVICE) as MediaSessionManager
-   provider=LyriconFactory.createProvider(
-    context=applicationContext,
-    providerPackageName=packageName,
-    playerPackageName=YTM
-   ).also {
-    it.autoSync=true
-    val ok=it.register()
-    DiagnosticStore.put(this@YtMusicListener,"register","Solicitud de registro Lyricon: "+ok)
-   }
+   provider=runCatching {
+    LyriconFactory.createProvider(
+     context=applicationContext,
+     providerPackageName=packageName,
+     playerPackageName=YTM
+    ).also {
+     it.autoSync=true
+     val ok=it.register()
+     DiagnosticStore.put(this@YtMusicListener,"register","Solicitud de registro Lyricon: "+ok)
+    }
+   }.onFailure {
+    DiagnosticStore.put(this@YtMusicListener,"register","Lyricon no disponible: "+it.message)
+    Log.w(TAG,"Lyricon registration failed. Android notification fallback remains available.",it)
+   }.getOrNull()
    runCatching {
     manager?.addOnActiveSessionsChangedListener(
      sessions,ComponentName(this,YtMusicListener::class.java),main)
@@ -123,6 +131,8 @@ class YtMusicListener:NotificationListenerService() {
    if(track!=null) {
     serial++
     track=null
+    syncedLines=emptyList()
+    notifier.cancel(this)
     provider?.player?.setSong(null)
     provider?.player?.setPlaybackState(false)
    }
@@ -183,12 +193,17 @@ class YtMusicListener:NotificationListenerService() {
   }
  }
  private fun publish(t:Track,lines:List<RichLyricLine>) {
+  syncedLines=lines
   val sent=provider?.player?.setSong(Song(
    id=t.id,name=t.title,artist=t.artist,duration=t.durationMs,lyrics=lines))
   DiagnosticStore.put(this,"delivery","setSong(): "+sent+" (líneas: "+lines.size+")")
   provider?.player?.setPosition(position(current?.playbackState))
   provider?.player?.setPlaybackState(
    current?.playbackState?.state==PlaybackState.STATE_PLAYING)
+  notifyLyrics()
+ }
+ private fun notifyLyrics() {
+  notifier.update(this,track,syncedLines,position(current?.playbackState),current?.playbackState?.state==PlaybackState.STATE_PLAYING)
  }
  private fun position(s:PlaybackState?):Long {
   if(s==null)return 0
@@ -203,6 +218,8 @@ class YtMusicListener:NotificationListenerService() {
  }
  private fun stop() {
   running=false
+  notifier.cancel(this)
+  syncedLines=emptyList()
   DiagnosticStore.put(this,"service","Servicio detenido / sin acceso")
   serial++
   main.removeCallbacks(tick)
