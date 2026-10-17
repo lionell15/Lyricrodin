@@ -70,6 +70,10 @@ class MainActivity:Activity() {
   }
   root.addView(status)
   setContentView(ScrollView(this).apply {addView(root)})
+  if (Build.VERSION.SDK_INT>=33 && getSharedPreferences("lyricrodin_options",MODE_PRIVATE).getBoolean("notifications",true)
+   && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)!=PackageManager.PERMISSION_GRANTED) {
+   requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS),100)
+  }
  }
  override fun onResume() {
   super.onResume()
