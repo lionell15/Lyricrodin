@@ -1,7 +1,7 @@
 name: Compilar APK Lyricrodin
 on:
   push:
-    branches: [main]
+    branches: [main, infinity-x-4.1]
   workflow_dispatch:
 jobs:
   build:
@@ -27,6 +27,6 @@ jobs:
         run: gradle --no-daemon :app:assembleDebug --stacktrace
       - uses: actions/upload-artifact@v4
         with:
-          name: Lyricrodin-v0.3-debug-apk
+          name: Lyricrodin-InfinityX-v0.4-debug-apk
           path: app/build/outputs/apk/debug/*.apk
           if-no-files-found: error
