@@ -3,6 +3,9 @@ package org.rodin.ytmlyrics
 import android.content.Context
 import android.provider.Settings
 import android.util.Log
+import android.Manifest
+import android.os.Build
+import android.content.pm.PackageManager
 
 internal object DiagnosticStore {
  private const val PREFS="lyricrodin_diagnostics"
@@ -19,6 +22,12 @@ internal object DiagnosticStore {
   return buildString {
    append("Acceso a notificaciones: ")
    append(if(enabled)"CONCEDIDO" else "NO CONCEDIDO")
+   append("\n\n")
+   val options=ctx.getSharedPreferences("lyricrodin_options",Context.MODE_PRIVATE)
+   val notificationFlag=options.getBoolean("notifications",true)
+   val notificationGranted=Build.VERSION.SDK_INT<33 || ctx.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)==PackageManager.PERMISSION_GRANTED
+   append("Letras en notificación AOSP: ")
+   append(if(!notificationFlag)"DESACTIVADAS" else if(notificationGranted)"ACTIVADAS" else "FALTA PERMISO")
    append("\n\n")
    val labels=listOf(
     "service" to "Servicio",
