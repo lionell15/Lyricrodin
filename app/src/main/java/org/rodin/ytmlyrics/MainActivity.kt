@@ -3,6 +3,10 @@ package org.rodin.ytmlyrics
 import android.app.Activity
 import android.content.Intent
 import android.os.Bundle
+import android.os.Build
+import android.Manifest
+import android.content.pm.PackageManager
+import android.widget.Switch
 import android.os.Handler
 import android.os.Looper
 import android.provider.Settings
@@ -28,17 +32,28 @@ class MainActivity:Activity() {
    setPadding(35,50,35,35)
   }
   root.addView(TextView(this).apply {
-   text="Lyricrodin v0.2 · Diagnóstico"
+   text="Lyricrodin v0.4 · Infinity-X 4.1"
    textSize=23f
   })
   root.addView(TextView(this).apply {
-   text="Reproduce YouTube Music durante al menos 15 segundos y consulta los estados abajo. La fuente de letras de HyperLyrics Enhanced debe ser Lyricon. Sin conexión Lyricon no aparecerá nada en HyperIsland."
+   text="Proveedor YT Music → Lyricon / HyperLyrics Enhanced (AOSP Android 17). Activa Lyricon como fuente de letras y reproduce una canción. Infinity-X no incluye la HyperIsland original; puedes mostrar letras sincronizadas en una notificación Android."
    textSize=15f
    setPadding(0,25,0,25)
   })
   root.addView(Button(this).apply {
    text="Permiso de acceso a notificaciones"
    setOnClickListener { startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)) }
+  })
+  root.addView(Switch(this).apply {
+   text="Mostrar letra sincronizada en notificación"
+   textSize=16f
+   isChecked=getSharedPreferences("lyricrodin_options",MODE_PRIVATE).getBoolean("notifications",true)
+   setOnCheckedChangeListener { _, enabled ->
+    getSharedPreferences("lyricrodin_options",MODE_PRIVATE).edit().putBoolean("notifications",enabled).apply()
+    if(enabled && Build.VERSION.SDK_INT>=33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)!=PackageManager.PERMISSION_GRANTED) {
+     requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS),100)
+    }
+   }
   })
   root.addView(Button(this).apply {
    text="Copiar diagnóstico"
