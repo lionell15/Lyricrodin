@@ -3,7 +3,7 @@ on:
   push:
     branches: [main, infinity-x-4.1, morphe-ytmusic]
   pull_request:
-    branches: [main]
+    branches: [main, infinity-x-4.1]
   workflow_dispatch:
 jobs:
   build:
