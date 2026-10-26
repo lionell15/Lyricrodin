@@ -2,6 +2,8 @@ name: Compilar APK Lyricrodin
 on:
   push:
     branches: [main, infinity-x-4.1, morphe-ytmusic]
+  pull_request:
+    branches: [main]
   workflow_dispatch:
 jobs:
   build:
