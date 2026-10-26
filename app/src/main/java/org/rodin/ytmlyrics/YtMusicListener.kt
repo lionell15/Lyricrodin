@@ -26,6 +26,7 @@ class YtMusicListener:NotificationListenerService() {
  private var manager:MediaSessionManager?=null
  private var current:MediaController?=null
  private var provider:LyriconProvider?=null
+ private var registeredPlayerPackage:String?=null
  private var track:Track?=null
  private var lastPlaying:Boolean?=null
  private var serial=0L
@@ -64,20 +65,6 @@ class YtMusicListener:NotificationListenerService() {
    running=true
    DiagnosticStore.put(this@YtMusicListener,"service","Servicio de notificaciones activo")
    manager=getSystemService(MEDIA_SESSION_SERVICE) as MediaSessionManager
-   provider=runCatching {
-    LyriconFactory.createProvider(
-     context=applicationContext,
-     providerPackageName=packageName,
-     playerPackageName=YTM
-    ).also {
-     it.autoSync=true
-     val ok=it.register()
-     DiagnosticStore.put(this@YtMusicListener,"register","Solicitud de registro Lyricon: "+ok)
-    }
-   }.onFailure {
-    DiagnosticStore.put(this@YtMusicListener,"register","Lyricon no disponible: "+it.message)
-    Log.w(TAG,"Lyricon registration failed. Android notification fallback remains available.",it)
-   }.getOrNull()
    runCatching {
     manager?.addOnActiveSessionsChangedListener(
      sessions,ComponentName(this,YtMusicListener::class.java),main)
@@ -91,19 +78,19 @@ class YtMusicListener:NotificationListenerService() {
   }
  }
  override fun onNotificationPosted(sbn:StatusBarNotification?) {
-  if(sbn?.packageName==YTM)main.post {refresh()}
+  if(sbn?.packageName in YTM_PACKAGES)main.post {refresh()}
  }
  override fun onNotificationRemoved(sbn:StatusBarNotification?) {
-  if(sbn?.packageName==YTM)main.post {refresh()}
+  if(sbn?.packageName in YTM_PACKAGES)main.post {refresh()}
  }
  private fun refresh() {
   if(!running)return
   val all=runCatching {
    manager?.getActiveSessions(ComponentName(this,YtMusicListener::class.java)).orEmpty()
   }.getOrElse {emptyList()}
-  val ytmSessions=all.count {it.packageName==YTM}
-  DiagnosticStore.put(this,"session",if(ytmSessions>0)"Sesión YouTube Music detectada" else "No hay sesión de YouTube Music; inicia una canción")
-  val next=all.filter {it.packageName==YTM}.maxByOrNull {
+  val ytmSessions=all.count {it.packageName in YTM_PACKAGES}
+  DiagnosticStore.put(this,"session",if(ytmSessions>0)"Sesión YouTube Music/Morphe detectada ("+ytmSessions+")" else "No hay sesión de YouTube Music/Morphe; inicia una canción")
+  val next=all.filter {it.packageName in YTM_PACKAGES}.maxByOrNull {
    when(it.playbackState?.state) {
     PlaybackState.STATE_PLAYING->3
     PlaybackState.STATE_BUFFERING->2
@@ -117,7 +104,39 @@ class YtMusicListener:NotificationListenerService() {
    lastPlaying=null
    next?.registerCallback(callback,main)
   }
+  switchProvider(next?.packageName)
   update()
+ }
+ private fun switchProvider(targetPackage:String?) {
+  if(targetPackage==registeredPlayerPackage && (provider!=null || targetPackage==null))return
+  runCatching {provider?.player?.setSong(null);provider?.unregister();provider?.destroy()}
+  provider=null
+  registeredPlayerPackage=targetPackage
+  lastCentralConnected=null
+  lastPlaying=null
+  serial++
+  track=null
+  syncedLines=emptyList()
+  notifier.cancel(this)
+  if(targetPackage==null) {
+   DiagnosticStore.put(this,"provider","Esperando reproductor")
+   return
+  }
+  DiagnosticStore.put(this,"provider",targetPackage)
+  provider=runCatching {
+   LyriconFactory.createProvider(
+    context=applicationContext,
+    providerPackageName=packageName,
+    playerPackageName=targetPackage
+   ).also {
+    it.autoSync=true
+    val ok=it.register()
+    DiagnosticStore.put(this,"register","Registro Lyricon ("+targetPackage+"): "+ok)
+   }
+  }.onFailure {
+   DiagnosticStore.put(this,"register","Lyricon no disponible: "+it.message)
+   Log.w(TAG,"Lyricon registration failed for "+targetPackage,it)
+  }.getOrNull()
  }
  private fun update() {
   if(!running)return
@@ -229,6 +248,7 @@ class YtMusicListener:NotificationListenerService() {
   manager=null
   runCatching {provider?.player?.setSong(null);provider?.unregister();provider?.destroy()}
   provider=null
+  registeredPlayerPackage=null
   track=null
  }
  override fun onDestroy() {
@@ -238,6 +258,11 @@ class YtMusicListener:NotificationListenerService() {
  }
  companion object {
   private const val TAG="Lyricrodin"
-  private const val YTM="com.google.android.apps.youtube.music"
+  private val YTM_PACKAGES=setOf(
+   "com.google.android.apps.youtube.music",
+   "app.morphe.android.apps.youtube.music",
+   "com.morphe.android.apps.youtube.music",
+   "com.google.android.apps.youtube.music.morphe"
+  )
  }
 }

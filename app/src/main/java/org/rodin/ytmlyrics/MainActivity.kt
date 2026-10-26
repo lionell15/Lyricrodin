@@ -32,11 +32,11 @@ class MainActivity:Activity() {
    setPadding(35,50,35,35)
   }
   root.addView(TextView(this).apply {
-   text="Lyricrodin v0.4 · Infinity-X 4.1"
+   text="Lyricrodin v0.5 · YouTube Music + Morphe"
    textSize=23f
   })
   root.addView(TextView(this).apply {
-   text="Proveedor YT Music → Lyricon / HyperLyrics Enhanced (AOSP Android 17). Activa Lyricon como fuente de letras y reproduce una canción. Infinity-X no incluye la HyperIsland original; puedes mostrar letras sincronizadas en una notificación Android."
+   text="Proveedor para YouTube Music oficial y Morphe → Lyricon / HyperLyrics Enhanced. Detecta el reproductor activo y recupera letras sincronizadas de LRCLIB. En ROMs AOSP como XPerience o Infinity-X no existe la HyperIsland de Xiaomi; activa la notificación de letras si quieres verlas en Android."
    textSize=15f
    setPadding(0,25,0,25)
   })
